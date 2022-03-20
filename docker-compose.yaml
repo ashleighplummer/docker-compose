@@ -1,0 +1,127 @@
+version: '3.8'
+networks:
+  se-network:
+    driver: bridge
+services:
+  search-api:
+    image: ghcr.io/sports-easy/search-api:latest
+    environment:
+      - NODE_ENV=production
+      - SERVER_PORT=5000
+      - SERVER_HOST=localhost
+      - REDIS_PORT=6379
+      - REDIS_HOST=redis-cache
+    ports:
+      - 5000:5000
+    expose:
+      - 5000
+    links:
+      - redis-cache:redis-cache
+    depends_on:
+      - redis-cache
+    networks:
+      - se-network
+  user-api:
+    image: ghcr.io/sports-easy/user-api:latest
+    environment:
+      - NODE_ENV=production
+      - APPLICATION_PORT=6000
+      - APPLICATION_HOST=localhost
+      - REDIS_PORT=6379
+      - REDIS_HOST=redis-cache
+      - AUTH0_DOMAIN=https://dev-rpyn-osq.eu.auth0.com
+      - AUTH0_AUDIENCE=nestjs-api
+      - AUTH0_CLIENT_ID=
+      - AUTH0_CLIENT_SECRET=
+      - SESSION_SECRET=
+      - SESSION_NAME=SEBOOKING
+      - SESSION_COOKIE_MAX_AGE=604800000
+    ports:
+      - 6000:6000
+    expose:
+      - 6000
+    links:
+      - redis-cache:redis-cache
+    depends_on:
+      - redis-cache
+    networks:
+      - se-network
+  redis-cache:
+    image: redislabs/redisearch
+    ports:
+      - 6379:6379
+    expose:
+      - 6379
+    networks:
+      - se-network
+  location-api:
+    image: ghcr.io/sports-easy/location-api:latest
+    ports:
+      - 80:8080
+    expose:
+      - 8080
+    links:
+      - facilities-db:facilities-db
+    depends_on:
+      - facilities-db
+    environment:
+      - SERVER_PORT=8080
+      - NODE_ENV=production
+      - DB_HOST=127.0.0.1
+      - DB_PORT=3306
+      - DB_NAME=sedb
+      - DB_USER_NAME=sedbadmin
+      - DB_USER_PWD=sports
+    networks:
+      - se-network
+  booking-api:
+    image: ghcr.io/sports-easy/booking-api:latest
+    ports:
+      - 7000:7000
+    expose:
+      - 7000
+    links:
+      - facilities-db:facilities-db
+    depends_on:
+      - facilities-db
+    environment:
+      - SERVER_PORT=7000
+      - NODE_ENV=production
+      - DB_HOST=127.0.0.1
+      - DB_PORT=33061
+      - DB_NAME=sedb
+      - DB_USER_NAME=sedbadmin
+      - DB_USER_PWD=sports
+      - POSTGRES_USER=sedbadmin
+      - POSTGRES_DATABASE=sportseasydb
+      - POSTGRES_PASSWORD=sports
+      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=localhost
+      - SQUARE_ACCESS_TOKEN=
+    networks:
+      - se-network
+  facilities-db:
+    image: ghcr.io/sports-easy/sportseasy-db/sportseasydb_postgres:dev-228bd9d
+    ports:
+      - 5432:3306
+    expose:
+      - 3306
+    networks:
+      - se-network
+  kong-gateway:
+    image: kong
+    ports:
+      - 5500:5500
+    links:
+      - facilities-db:facilities-db
+    environment:
+      - POSTGRES_USER=sedbadmin
+      - POSTGRES_DB=kong
+      - POSTGRES_PASSWORD=sports
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=kong-database
+      - KONG_PG_USER=kong
+      - KONG_PG_PASSWORD=kong
+    command: bash -c "kong kong migrations bootstrap"
+    networks:
+      - se-network
